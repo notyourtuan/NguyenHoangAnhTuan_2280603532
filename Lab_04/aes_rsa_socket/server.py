@@ -12,19 +12,20 @@ server_socket.listen(5)
 
 server_key = RSA.generate(2048)
 
-client = []
+clients = []
 
-def encrypted_message(key, message):
+def encrypt_message(key, message):
     cipher = AES.new(key, AES.MODE_CBC)
-    ciphertext = cipher.encrypt(pad(message, AES.block_size))
-    return ciphertext + cipher.iv
+    ciphertext = cipher.encrypt(pad(message.encode(), AES.block_size))
+    return cipher.iv + ciphertext
 
-def decrypted_message(key, message):
-    iv = message[:AES.block_size]
+def decrypt_message(key, encrypted_message):
+    iv = encrypted_message[:AES.block_size]  # IV ở đầu
     ciphertext = encrypted_message[AES.block_size:]
     cipher = AES.new(key, AES.MODE_CBC, iv)
     decrypted_message = unpad(cipher.decrypt(ciphertext), AES.block_size)
     return decrypted_message.decode()
+
 
 def handle_client(client_socket, client_address):
     print(f"Connection from {client_address}")
@@ -40,12 +41,14 @@ def handle_client(client_socket, client_address):
     
     while True:
         encrypted_message = client_socket.recv(1024)
-        decrypted_message = decrypted_message(aes_key, encrypted_message)
+        if not encrypted_message:
+            break
+        decrypted_message = decrypt_message(aes_key, encrypted_message)
         print(f"Received from {client_address}: {decrypted_message}")
         
         for client, key in clients:
             if client != client_socket:
-                client.send(encrypted_message(key, decrypted_message))
+                encrypted = encrypt_message(key, decrypted_message)
                 client.send(encrypted)
         if decrypted_message == 'exit':
             break
